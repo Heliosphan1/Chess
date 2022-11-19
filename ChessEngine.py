@@ -33,6 +33,9 @@ class GameState():
         self.enpassant_possible = () # track square (row, col) that can be taken en passant, if exists
         self.castle_rights = (True, True, True, True) # white queen side, white king side, black queen side, black king side
         self.castle_rights_log = [self.castle_rights]
+        self.fullmoves = 1 # for notation, increments after black's move
+        self.halfmoves = 0 # half moves without captures
+        self.halfmove_log = [0]
         
         
     def get_piece(self, square: tuple[int, int]) -> str:
@@ -115,11 +118,25 @@ class GameState():
                 bqs = False
             if move.end_sq == (0, len(self.board[0]) - 1):
                 bks = False
-                    
         self.castle_rights = (wqs, wks, bqs, bks)
-        
         self.castle_rights_log.append(self.castle_rights)
          
+        # update move number
+        if self.white_to_move:
+            self.fullmoves += 1
+        
+        # update consecutive halfmoves without captures/pawn moves for draw
+        if move.piece_captured == '--' and not move.piece_moved.endswith('P'):
+            self.halfmoves += 1
+        else:
+            self.halfmove_log.append(self.halfmoves) # log for undoing moves
+            self.halfmoves = 0
+        
+        # draw
+        if self.halfmoves == 50:
+            self.stalemate = True
+        
+        
     def undo_last_move(self) -> None:
         '''Rolls back last played move'''
         
@@ -162,6 +179,18 @@ class GameState():
         # checkmate/stalemate
         self.stalemate = False
         self.checkmate = False
+        
+        # update move number
+        if not self.white_to_move:
+            self.fullmoves -= 1
+            
+        # update halfmoves
+        if self.halfmoves > 0:
+            self.halfmoves -= 1
+        else:
+            self.halfmoves = self.halfmove_log.pop()
+        
+        
         
     def redo_undone_move(self) -> None:
         '''Replays last cancelled move'''
@@ -226,11 +255,24 @@ class GameState():
             if move.end_sq == (0, 0):
                 bqs = False
             if move.end_sq == (0, len(self.board[0]) - 1):
-                bks = False
-               
+                bks = False      
         self.castle_rights = (wqs, wks, bqs, bks)
-        
         self.castle_rights_log.append(self.castle_rights)
+        
+        # update move number
+        if self.white_to_move:
+            self.fullmoves += 1
+        
+        # update consecutive halfmoves
+        if move.piece_captured == '--' and not move.piece_moved.endswith('P'):
+            self.halfmoves += 1
+        else:
+            self.halfmove_log.append(self.halfmoves) # log for undoing moves
+            self.halfmoves = 0
+        
+        # draw
+        if self.halfmoves == 50:
+            self.stalemate = True
             
     def get_pawn_moves(self, r: int, c: int) -> list:
         '''Return all possible moves for a pawn based on position and color (not considering opening king checks)'''
@@ -428,6 +470,8 @@ class GameState():
         
         valid_moves = []
         temp_undo_log = copy.deepcopy(self.undo_log) # save undo log state
+        temp_stalemate = self.stalemate # save stalemate state
+        
         for move in self.get_all_moves(): # go through all possible moves
             self.make_move(move) # make a test move
             self.white_to_move = not self.white_to_move # switch turn back to original player
@@ -437,15 +481,13 @@ class GameState():
             self.undo_last_move() # revert test move
                 
         self.undo_log = temp_undo_log # restore undo log
+        self.stalemate = temp_stalemate # restore stalemate
         
         if len(valid_moves) == 0: # if no moves - either it's checkmate or stalemate
             if self.in_check() == True:
                 self.checkmate = True
             else:
                 self.stalemate = True
-        else: # update in case we undo some moves
-            self.checkmate = False
-            self.stalemate = False
                                 
         return valid_moves
               

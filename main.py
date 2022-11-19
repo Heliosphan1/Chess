@@ -461,6 +461,8 @@ def main():
         if move_made == True:
             move_made = False
             player_color = 'w' if curr_state.white_to_move else 'b'
+            print(curr_state.halfmoves)
+            print(curr_state.stalemate)
             valid_moves = curr_state.get_valid_moves()
             if curr_state.checkmate or curr_state.stalemate: # update check, checkmate and stalemate attributes
                 move_played.is_checkmate = curr_state.checkmate
@@ -468,6 +470,7 @@ def main():
                 game_over = True
             elif curr_state.in_check():
                 move_played.is_check = True
+
                 # for i in range(len(curr_state.board)):
                 #     for j in range(len(curr_state.board[0])):
                 #         if curr_state.board[i][j] == player_color + 'K':
@@ -475,9 +478,12 @@ def main():
                 #             break
                 # print(r, c)
                 # draw_check(screen, (r, c))           
-            if get_notation:
-                print(move_played.get_chess_notation())
-                get_notation = False
+            # if get_notation:
+            #     if not curr_state.white_to_move: # notate white's move
+            #         print(str(curr_state.fullmoves) + '. ' + move_played.get_chess_notation(), end=' ')
+            #     else:
+            #         print(move_played.get_chess_notation())
+            #     get_notation = False
         
         # End of the game
         if game_over:
