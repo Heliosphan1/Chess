@@ -101,7 +101,7 @@ def draw_pieces(gs: GameState, screen: pygame.display):
 def draw_movelog(gs: GameState, screen: pygame.display):
     '''Adds move log display to the right of the board'''
      
-    s = pygame.Surface(((WIDTH - HEIGHT), HEIGHT))
+    s = pygame.Surface((MOVELOG_SIZE))
     s.fill((38, 36, 33))
     
     white_move = True
@@ -115,7 +115,7 @@ def draw_movelog(gs: GameState, screen: pygame.display):
             move_counter += 1
         log_text = MOVELOG_FONT.render(log_string, True, (215, 220, 224))
         
-        if text_location[0] + log_text.get_width() < (WIDTH - HEIGHT):
+        if text_location[0] + log_text.get_width() < (MOVELOG_WIDTH):
             s.blit(log_text, text_location)
         else:
             text_location = (10, text_location[1] + MOVELOG_FONT.get_linesize())
@@ -123,7 +123,7 @@ def draw_movelog(gs: GameState, screen: pygame.display):
         text_location = (text_location[0] + log_text.get_width(), text_location[1])
         white_move = not white_move
  
-    screen.blit(s, (HEIGHT, 0))
+    screen.blit(s, (BOARD_WIDTH, 0))
      
 def draw_moving_state(gs: GameState, screen: pygame.display, valid_moves: list[Move], square: tuple[int, int]):
     '''Displays the board with selected piece moving with the cursor and home square greyed out'''
@@ -148,7 +148,7 @@ def draw_moving_state(gs: GameState, screen: pygame.display, valid_moves: list[M
     
     # draw moving piece on top of mouse    
     piece_img = IMAGES[piece]
-    if pygame.mouse.get_pos()[0] < HEIGHT and pygame.mouse.get_pos()[1] < HEIGHT:
+    if pygame.mouse.get_pos()[0] < BOARD_WIDTH and pygame.mouse.get_pos()[1] < BOARD_HEIGHT:
         # only draw if within board bounds
         screen.blit(piece_img, (pygame.mouse.get_pos()[0] - SQ_SIZE//2, pygame.mouse.get_pos()[1] - SQ_SIZE//2))
     
@@ -178,7 +178,7 @@ def draw_promotion(gs: GameState, screen: pygame.display, square: tuple[int, int
     draw_board(screen)
     draw_pieces(gs, screen)
     # draw opaque square on top of the screen during promotion for highlighting
-    s = pygame.Surface(SIZE)
+    s = pygame.Surface(DISPLAY_SIZE)
     s.set_alpha(150)                # level of opacity
     s.fill((0,0,0))           # background color
     screen.blit(s, (0,0))    # (0,0) are the top-left coordinates
@@ -302,16 +302,18 @@ def animate_move(gs: GameState, screen: pygame.display, move: Move, clock: pygam
 def draw_end_text(screen: pygame.display, text: str):
     '''Displays end text'''
 
+    # "White/Black won"
     main_font = pygame.font.SysFont('Cambria Math', SQ_SIZE // 2, True, False)
     main_text = main_font.render(text, True, pygame.Color('Black'))
     main_text_outl = add_outline_to_image(main_text, 2, (255,255,255))
-    text_location = ((HEIGHT - main_text_outl.get_width()) / 2, (HEIGHT - main_text_outl.get_height()) / 2)
+    text_location = ((BOARD_WIDTH - main_text_outl.get_width()) / 2, (BOARD_HEIGHT - main_font.get_linesize()) / 2)
     screen.blit(main_text_outl, text_location)
     
+    # "Press R to reset" below 
     second_font = pygame.font.SysFont('Cambria Math', SQ_SIZE // 4, True, False)
-    reset_text = second_font.render('R to reset', True, pygame.Color('Black'))
+    reset_text = second_font.render('Press R to reset', True, pygame.Color('Black'))
     reset_text_outl = add_outline_to_image(reset_text, 2, (255,255,255))
-    text_location = ((HEIGHT - reset_text_outl.get_width()) / 2, (HEIGHT - reset_text_outl.get_height() + main_text_outl.get_height()) / 2)
+    text_location = ((BOARD_WIDTH - reset_text_outl.get_width()) / 2, (BOARD_HEIGHT - second_font.get_linesize() + 1.1 * main_font.get_linesize()) / 2)
     screen.blit(reset_text_outl, text_location)    
 
 def add_outline_to_image(image: pygame.Surface, thickness: int, color: tuple, color_key: tuple = (255, 0, 255)) -> pygame.Surface:
@@ -335,7 +337,7 @@ def add_outline_to_image(image: pygame.Surface, thickness: int, color: tuple, co
 def main():   
     
     clock = pygame.time.Clock()   
-    screen = pygame.display.set_mode(SIZE)
+    screen = pygame.display.set_mode(DISPLAY_SIZE)
     curr_state = GameState()
     valid_moves = curr_state.get_valid_moves()
     move_made = False
@@ -545,9 +547,11 @@ def main():
         
 if __name__ == "__main__":
     pygame.init()
-    SIZE = WIDTH, HEIGHT = 1280, 960 # size of the game screen in pixels
+    BOARD_SIZE = BOARD_WIDTH, BOARD_HEIGHT = 960, 960 # size of the game screen in pixels
+    MOVELOG_SIZE = MOVELOG_WIDTH, MOVELOG_HEIGHT = BOARD_WIDTH//3, BOARD_HEIGHT
+    DISPLAY_SIZE = BOARD_WIDTH + MOVELOG_WIDTH, BOARD_HEIGHT
     DIMENSIONS = 8 # number of square in a row/column
-    SQ_SIZE = HEIGHT // DIMENSIONS
+    SQ_SIZE = BOARD_HEIGHT // DIMENSIONS
     COLORS = [(214, 228, 229), (73, 113, 116)] # light squares, dark squares
     HIGHLIGHT_COLORS = [(222, 178, 164), (136, 107, 95)] # highlight for light and dark squares
     LAST_MOVE_COLOR = (242, 211, 136)
