@@ -3,6 +3,7 @@ import io
 from ChessEngine import GameState, Move
 import ChessAI
 import time
+import os
 # import PIL
 # import pygame.freetype    
 
@@ -51,6 +52,22 @@ def load_images_svg():
         piece_image_copy = piece_image.copy()
         piece_image_copy.fill((255, 255, 255 , 128), None, pygame.BLEND_RGBA_MULT) # alpha = 128, change for transparency
         TRANSPARENT_IMAGES[piece] = piece_image_copy
+
+def load_sounds():
+    '''Initial load for sound files'''
+    
+    folder = './sounds/'
+    for file in os.listdir(folder):
+        filename = file.split('.')[0]
+        SOUNDS[filename]= pygame.mixer.Sound(os.path.join(folder, file))
+    
+def play_sound(move: Move):
+    '''Play different sounds for capture and non-capture move'''
+    
+    if move.piece_captured != '--':
+        SOUNDS['capture'].play()
+    else:
+        SOUNDS['move'].play()
 
 def draw_board(screen: pygame.display):
     '''Displays chess board with row and column lables'''
@@ -279,7 +296,7 @@ def add_outline_to_image(image: pygame.Surface, thickness: int, color: tuple, co
     new_img.blit(image, (thickness, thickness))
     return new_img
 
-    
+
 def main():   
     
     clock = pygame.time.Clock()   
@@ -332,11 +349,13 @@ def main():
                                         if move_played.is_promotion:
                                             promotion = True # move to promotion branch
                                             animate_move(curr_state, screen, move_played, clock)
+                                            play_sound(move_played)
                                             promotion_sqs = get_promotion_squares(move_played.end_sq) # generate squares and pieces for promotion screen
                                             curr_state.remove_piece(move_played.start_sq) # remove pawn for promotion screen (for visual purposes)
                                         else:
                                             curr_state.make_move(move_played)
                                             animate_move(curr_state, screen, move_played, clock)
+                                            play_sound(move_played)
                                             move_made = True
                                             get_notation = True # to display notation only on new moves, not undo/redo
                                         break
@@ -376,8 +395,10 @@ def main():
                                     promotion = True # move to promotion branch
                                     promotion_sqs = get_promotion_squares(move_played.end_sq) # generate squares and pieces for promotion screen
                                     curr_state.remove_piece(move_played.start_sq) # remove pawn for promotion screen (for visual purposes)
+                                    play_sound(move_played)
                                 else:
                                     curr_state.make_move(move_played)
+                                    play_sound(move_played)
                                     move_made = True
                                     get_notation = True # to display notation only on new moves, not undo/redo
                                 break
@@ -396,6 +417,7 @@ def main():
                             curr_state.redo_undone_move()
                             move_made = True
                             animate_move(curr_state, screen, curr_state.move_log[-1], clock) # animate last move if something is in the log
+                            play_sound(curr_state.move_log[-1])
                     if event.key == pygame.K_r:
                         # completely reset the game
                         curr_state = GameState()
@@ -454,6 +476,7 @@ def main():
             
             curr_state.make_move(move_played)
             animate_move(curr_state, screen, move_played, clock)
+            play_sound(move_played)
             move_made = True
             get_notation = True
         
@@ -461,8 +484,6 @@ def main():
         if move_made == True:
             move_made = False
             player_color = 'w' if curr_state.white_to_move else 'b'
-            print(curr_state.halfmoves)
-            print(curr_state.stalemate)
             valid_moves = curr_state.get_valid_moves()
             if curr_state.checkmate or curr_state.stalemate: # update check, checkmate and stalemate attributes
                 move_played.is_checkmate = curr_state.checkmate
@@ -478,12 +499,12 @@ def main():
                 #             break
                 # print(r, c)
                 # draw_check(screen, (r, c))           
-            # if get_notation:
-            #     if not curr_state.white_to_move: # notate white's move
-            #         print(str(curr_state.fullmoves) + '. ' + move_played.get_chess_notation(), end=' ')
-            #     else:
-            #         print(move_played.get_chess_notation())
-            #     get_notation = False
+            if get_notation:
+                if not curr_state.white_to_move: # notate white's move
+                    print(str(curr_state.fullmoves) + '. ' + move_played.get_chess_notation(), end=' ')
+                else:
+                    print(move_played.get_chess_notation())
+                get_notation = False
         
         # End of the game
         if game_over:
@@ -510,10 +531,12 @@ if __name__ == "__main__":
     LAST_MOVE_COLOR = (242, 211, 136)
     CHECK_COLOR = (255, 100, 100)
     IMAGES = {}
+    SOUNDS = {}
     TRANSPARENT_IMAGES = {}
     FPS = 150
     
     pygame.init()
     load_images_svg()
+    load_sounds()
     main()
     
