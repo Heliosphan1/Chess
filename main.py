@@ -73,8 +73,7 @@ def draw_board(screen: pygame.display):
     '''Displays chess board with row and column lables'''
        
     pygame.display.set_caption('Chess')
-    label_font = pygame.font.SysFont('CaskaydiaCove NF', SQ_SIZE // 5)
-    
+
     # draw colored squares
     for i in range(DIMENSIONS):
         for j in range(DIMENSIONS):
@@ -83,11 +82,11 @@ def draw_board(screen: pygame.display):
     # display row & column labels
     for i, ch in enumerate('abcdefgh'):
         number_color = COLORS[1-(i % 2)]    
-        number_label = label_font.render(str(8-i), True, number_color)
+        number_label = LABEL_FONT.render(str(8-i), True, number_color)
         screen.blit(number_label, (2, 2 + i * SQ_SIZE))
         
         letter_color = COLORS[i % 2]
-        letter_label = label_font.render(ch, True, letter_color)
+        letter_label = LABEL_FONT.render(ch, True, letter_color)
         screen.blit(letter_label, ((i+1) * SQ_SIZE - letter_label.get_width() - 2, screen.get_height() - letter_label.get_height() - 2))
 
 def draw_pieces(gs: GameState, screen: pygame.display):
@@ -98,7 +97,34 @@ def draw_pieces(gs: GameState, screen: pygame.display):
             if cell != '--':
                 piece = IMAGES[cell]
                 screen.blit(piece, (j * SQ_SIZE, i * SQ_SIZE))
-      
+ 
+def draw_movelog(gs: GameState, screen: pygame.display):
+    '''Adds move log display to the right of the board'''
+     
+    s = pygame.Surface(((WIDTH - HEIGHT), HEIGHT))
+    s.fill((38, 36, 33))
+    
+    white_move = True
+    move_counter = 1
+    text_location = (10, 10)
+    for move in gs.move_log:
+        if white_move: # notate white's move
+            log_string = str(move_counter) + '. ' + move.get_chess_notation() + ' '
+        else:
+            log_string = move.get_chess_notation() + ' '
+            move_counter += 1
+        log_text = MOVELOG_FONT.render(log_string, True, (215, 220, 224))
+        
+        if text_location[0] + log_text.get_width() < (WIDTH - HEIGHT):
+            s.blit(log_text, text_location)
+        else:
+            text_location = (10, text_location[1] + MOVELOG_FONT.get_linesize())
+            s.blit(log_text, text_location)
+        text_location = (text_location[0] + log_text.get_width(), text_location[1])
+        white_move = not white_move
+ 
+    screen.blit(s, (HEIGHT, 0))
+     
 def draw_moving_state(gs: GameState, screen: pygame.display, valid_moves: list[Move], square: tuple[int, int]):
     '''Displays the board with selected piece moving with the cursor and home square greyed out'''
     
@@ -116,11 +142,19 @@ def draw_moving_state(gs: GameState, screen: pygame.display, valid_moves: list[M
     highlight_start_sq(screen, square)
     transp_img = TRANSPARENT_IMAGES[piece]
     screen.blit(transp_img, (c * SQ_SIZE, r * SQ_SIZE))
-
+    
+    # highglight if in check
+    draw_check(gs, screen, 'w' if gs.white_to_move else 'b')
+    
     # draw moving piece on top of mouse    
     piece_img = IMAGES[piece]
-    screen.blit(piece_img, (pygame.mouse.get_pos()[0] - SQ_SIZE//2, pygame.mouse.get_pos()[1] - SQ_SIZE//2))
-       
+    if pygame.mouse.get_pos()[0] < HEIGHT and pygame.mouse.get_pos()[1] < HEIGHT:
+        # only draw if within board bounds
+        screen.blit(piece_img, (pygame.mouse.get_pos()[0] - SQ_SIZE//2, pygame.mouse.get_pos()[1] - SQ_SIZE//2))
+    
+    # draw movelog
+    draw_movelog(gs, screen)
+    
 def get_promotion_squares(square: tuple[int, int]) -> dict:
     '''
     Return dictionary of promotion squares in the form "square: piece".
@@ -204,7 +238,6 @@ def highlight_last_move(gs:GameState, screen: pygame.display):
             s_lm.fill(color)
             s_lm.set_alpha(160)
             screen.blit(s_lm, (c * SQ_SIZE, r * SQ_SIZE))
-    
 
 def draw_triangles(screen: pygame.display, color: tuple[int, int, int], square: tuple[int, int], scale):
     '''Draws 4 inward right triangles in the corners of the square based on scale'''
@@ -217,14 +250,16 @@ def draw_triangles(screen: pygame.display, color: tuple[int, int, int], square: 
         v3 = (v1[0], v1[1] + t[3] * SQ_SIZE * scale)
         pygame.draw.polygon(screen, color, (v1, v2, v3))
 
-def draw_check(screen: pygame.display, square: tuple[int, int]):
+def draw_check(gs: GameState, screen: pygame.display, player_color: str):
+    '''Highlight king square if king is in check'''
     
-    r, c = square
-    s = pygame.Surface((SQ_SIZE, SQ_SIZE))
-    s.set_alpha(100)
-    s.fill(CHECK_COLOR)
-    # pygame.draw.circle(s, CHECK_COLOR, (c * SQ_SIZE + SQ_SIZE/2, r * SQ_SIZE + SQ_SIZE/2), SQ_SIZE)
-    screen.blit(s, (c * SQ_SIZE, r * SQ_SIZE))
+    if gs.in_check():
+        for i in range(len(gs.board)):
+            for j in range(len(gs.board[0])):
+                if gs.board[i][j] == player_color + 'K':
+                    r, c = i, j
+                    break
+        draw_triangles(screen, CHECK_COLOR, (r, c), 0.2)     
 
 def animate_move(gs: GameState, screen: pygame.display, move: Move, clock: pygame.time.Clock):
     '''Animate the last played move'''
@@ -267,16 +302,16 @@ def animate_move(gs: GameState, screen: pygame.display, move: Move, clock: pygam
 def draw_end_text(screen: pygame.display, text: str):
     '''Displays end text'''
 
-    main_font = pygame.font.SysFont('Cambria Math', 55, True, False)
+    main_font = pygame.font.SysFont('Cambria Math', SQ_SIZE // 2, True, False)
     main_text = main_font.render(text, True, pygame.Color('Black'))
     main_text_outl = add_outline_to_image(main_text, 2, (255,255,255))
-    text_location = ((WIDTH - main_text_outl.get_width()) / 2, (HEIGHT - main_text_outl.get_height()) / 2)
+    text_location = ((HEIGHT - main_text_outl.get_width()) / 2, (HEIGHT - main_text_outl.get_height()) / 2)
     screen.blit(main_text_outl, text_location)
     
-    second_font = pygame.font.SysFont('Cambria Math', 25, True, False)
+    second_font = pygame.font.SysFont('Cambria Math', SQ_SIZE // 4, True, False)
     reset_text = second_font.render('R to reset', True, pygame.Color('Black'))
     reset_text_outl = add_outline_to_image(reset_text, 2, (255,255,255))
-    text_location = ((WIDTH - reset_text_outl.get_width()) / 2, (HEIGHT - reset_text_outl.get_height() + main_text_outl.get_height()) / 2)
+    text_location = ((HEIGHT - reset_text_outl.get_width()) / 2, (HEIGHT - reset_text_outl.get_height() + main_text_outl.get_height()) / 2)
     screen.blit(reset_text_outl, text_location)    
 
 def add_outline_to_image(image: pygame.Surface, thickness: int, color: tuple, color_key: tuple = (255, 0, 255)) -> pygame.Surface:
@@ -305,7 +340,6 @@ def main():
     valid_moves = curr_state.get_valid_moves()
     move_made = False
     promotion = False
-    get_notation = False
     game_over = False
     run = True
     clicked_piece = '--'
@@ -324,11 +358,11 @@ def main():
                     run = False             
                 
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if not game_over and human_turn:
-                        # LMB pressed
-                        lmb_down_pos = get_square(event.pos)
-                        clicked_piece = curr_state.get_piece(lmb_down_pos)
+                    lmb_down_pos = get_square(event.pos)                        
 
+                    if not game_over and human_turn and lmb_down_pos[0] < 8 and lmb_down_pos[1] < 8:
+                        # LMB pressed
+                        clicked_piece = curr_state.get_piece(lmb_down_pos)
                         if clicked_sqs:
                             # 2nd click, already 1 square registered for a move
                             if clicked_piece[0] == player_color: 
@@ -357,7 +391,6 @@ def main():
                                             animate_move(curr_state, screen, move_played, clock)
                                             play_sound(move_played)
                                             move_made = True
-                                            get_notation = True # to display notation only on new moves, not undo/redo
                                         break
                                 clicked_sqs.clear()
                                 
@@ -377,32 +410,34 @@ def main():
             
                 elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and clicked_sqs: # if LMB is released and piece is registered
                     lmb_up_pos = get_square(event.pos)
-                    
-                    if clicked_sqs[0] == lmb_up_pos:
-                        # clicked and released on same square
-                        if click_counter == 2:
-                            # if clicked and released on the same square twice - deselect
-                            clicked_sqs.clear()
-                                            
-                    else: 
-                        # clicked and released on different squares, register 2nd square, try to make a move
-                        clicked_sqs.append(lmb_up_pos) # add target square
-                        move_played = Move(clicked_sqs[0], clicked_sqs[1], curr_state) # register the move
-                        for i in range(len(valid_moves)):
-                            if move_played == valid_moves[i]: # testing if move is valid
-                                update_move(move_played, valid_moves[i])
-                                if move_played.is_promotion:
-                                    promotion = True # move to promotion branch
-                                    promotion_sqs = get_promotion_squares(move_played.end_sq) # generate squares and pieces for promotion screen
-                                    curr_state.remove_piece(move_played.start_sq) # remove pawn for promotion screen (for visual purposes)
-                                    play_sound(move_played)
-                                else:
-                                    curr_state.make_move(move_played)
-                                    play_sound(move_played)
-                                    move_made = True
-                                    get_notation = True # to display notation only on new moves, not undo/redo
-                                break
+                    if lmb_up_pos[0] < 8 and lmb_up_pos[1] < 8:
+                        if clicked_sqs[0] == lmb_up_pos:
+                            # clicked and released on same square
+                            if click_counter == 2:
+                                # if clicked and released on the same square twice - deselect
+                                clicked_sqs.clear()
+                                                
+                        else: 
+                            # clicked and released on different squares, register 2nd square, try to make a move
+                            clicked_sqs.append(lmb_up_pos) # add target square
+                            move_played = Move(clicked_sqs[0], clicked_sqs[1], curr_state) # register the move
+                            for i in range(len(valid_moves)):
+                                if move_played == valid_moves[i]: # testing if move is valid
+                                    update_move(move_played, valid_moves[i])
+                                    if move_played.is_promotion:
+                                        promotion = True # move to promotion branch
+                                        promotion_sqs = get_promotion_squares(move_played.end_sq) # generate squares and pieces for promotion screen
+                                        curr_state.remove_piece(move_played.start_sq) # remove pawn for promotion screen (for visual purposes)
+                                        play_sound(move_played)
+                                    else:
+                                        curr_state.make_move(move_played)
+                                        play_sound(move_played)
+                                        move_made = True
+                                    break
 
+                            clicked_sqs.clear()
+                    else:
+                        # released outside of the board
                         clicked_sqs.clear()
                         
                 elif event.type == pygame.KEYUP and not is_lmb_pressed:
@@ -445,7 +480,6 @@ def main():
                             move_played.promotion_piece = promotion_sqs[clicked_sqs[0]] # assign chosen piece to promote to
                             curr_state.make_move(move_played)
                             move_made = True
-                            get_notation = True # to display notation only on new moves, not undo/redo
                             promotion = False
 
                         clicked_sqs.clear()
@@ -459,11 +493,13 @@ def main():
             draw_moving_state(curr_state, screen, valid_moves, clicked_sqs[0])
         else:
             draw_board(screen)
+            draw_movelog(curr_state, screen)
             highlight_last_move(curr_state, screen)
             if clicked_sqs:
                 highlight_start_sq(screen, clicked_sqs[0])
                 highlight_moves(curr_state, screen, valid_moves, clicked_sqs[0])
             draw_pieces(curr_state, screen)
+            draw_check(curr_state, screen, player_color)
         # AI moves
         if not game_over and not human_turn:
             # move_played = ChessAI.find_best_move_greedy(curr_state, valid_moves)
@@ -478,7 +514,6 @@ def main():
             animate_move(curr_state, screen, move_played, clock)
             play_sound(move_played)
             move_made = True
-            get_notation = True
         
         # Move completed handling
         if move_made == True:
@@ -491,21 +526,7 @@ def main():
                 game_over = True
             elif curr_state.in_check():
                 move_played.is_check = True
-
-                # for i in range(len(curr_state.board)):
-                #     for j in range(len(curr_state.board[0])):
-                #         if curr_state.board[i][j] == player_color + 'K':
-                #             r, c = i, j
-                #             break
-                # print(r, c)
-                # draw_check(screen, (r, c))           
-            if get_notation:
-                if not curr_state.white_to_move: # notate white's move
-                    print(str(curr_state.fullmoves) + '. ' + move_played.get_chess_notation(), end=' ')
-                else:
-                    print(move_played.get_chess_notation())
-                get_notation = False
-        
+              
         # End of the game
         if game_over:
             if curr_state.checkmate:
@@ -522,20 +543,23 @@ def main():
    
         
         
-if __name__ == "__main__": 
-    SIZE = WIDTH, HEIGHT = 960, 960 # size of the board in pixels
+if __name__ == "__main__":
+    pygame.init()
+    SIZE = WIDTH, HEIGHT = 1280, 960 # size of the game screen in pixels
     DIMENSIONS = 8 # number of square in a row/column
     SQ_SIZE = HEIGHT // DIMENSIONS
     COLORS = [(214, 228, 229), (73, 113, 116)] # light squares, dark squares
     HIGHLIGHT_COLORS = [(222, 178, 164), (136, 107, 95)] # highlight for light and dark squares
     LAST_MOVE_COLOR = (242, 211, 136)
-    CHECK_COLOR = (255, 100, 100)
+    CHECK_COLOR = (220, 53, 53)
+    LABEL_FONT = pygame.font.SysFont('CaskaydiaCove NF', SQ_SIZE // 5)
+    MOVELOG_FONT = pygame.font.SysFont('CaskaydiaCove NF', 25, False, False)
     IMAGES = {}
     SOUNDS = {}
     TRANSPARENT_IMAGES = {}
     FPS = 150
     
-    pygame.init()
+
     load_images_svg()
     load_sounds()
     main()
