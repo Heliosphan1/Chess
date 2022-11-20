@@ -614,10 +614,8 @@ class Move():
         # !!!ADD IF 2 KNIGHTS/ROOKS CAN TAKE AT THE SAME TIME
         notation = ''
         if self.is_castling:
-            if self.start_col > self.end_col:
-                notation = 'O-O-O'
-            else:
-                notation = 'O-O' 
+            notation = 'O-O-O' if self.start_col > self.end_col else 'O-O'
+
         elif self.piece_moved.endswith('P'): # for pawns
             notation = self.get_rank_file(self.end_sq)
             if self.piece_captured != '--': 

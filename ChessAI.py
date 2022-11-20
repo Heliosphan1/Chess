@@ -25,7 +25,7 @@ def find_best_move(function, **kwargs) -> Move:
     temp_undo_log = copy.deepcopy(gs.undo_log)
     counter = 0
     function(**kwargs)
-    print('Board states evaluated:', counter)
+    # print('Board states evaluated:', counter)
     gs.undo_log = temp_undo_log
     return best_moves[random.randint(0, len(best_moves) - 1)]
 

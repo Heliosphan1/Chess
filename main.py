@@ -4,6 +4,7 @@ from ChessEngine import GameState, Move
 import ChessAI
 import time
 import os
+import logging
 # import PIL
 # import pygame.freetype    
 
@@ -177,8 +178,9 @@ def draw_promotion(gs: GameState, screen: pygame.display, square: tuple[int, int
     
     draw_board(screen)
     draw_pieces(gs, screen)
+    draw_movelog(gs, screen)
     # draw opaque square on top of the screen during promotion for highlighting
-    s = pygame.Surface(DISPLAY_SIZE)
+    s = pygame.Surface(BOARD_SIZE)
     s.set_alpha(150)                # level of opacity
     s.fill((0,0,0))           # background color
     screen.blit(s, (0,0))    # (0,0) are the top-left coordinates
@@ -314,7 +316,7 @@ def draw_end_text(screen: pygame.display, text: str):
     reset_text = second_font.render('Press R to reset', True, pygame.Color('Black'))
     reset_text_outl = add_outline_to_image(reset_text, 2, (255,255,255))
     text_location = ((BOARD_WIDTH - reset_text_outl.get_width()) / 2, (BOARD_HEIGHT - second_font.get_linesize() + 1.1 * main_font.get_linesize()) / 2)
-    screen.blit(reset_text_outl, text_location)    
+    screen.blit(reset_text_outl, text_location)
 
 def add_outline_to_image(image: pygame.Surface, thickness: int, color: tuple, color_key: tuple = (255, 0, 255)) -> pygame.Surface:
     '''Adds scuffed outline to image or text'''
@@ -557,14 +559,15 @@ if __name__ == "__main__":
     LAST_MOVE_COLOR = (242, 211, 136)
     CHECK_COLOR = (220, 53, 53)
     LABEL_FONT = pygame.font.SysFont('CaskaydiaCove NF', SQ_SIZE // 5)
-    MOVELOG_FONT = pygame.font.SysFont('CaskaydiaCove NF', 25, False, False)
+    MOVELOG_FONT = pygame.font.SysFont('CaskaydiaCove NF', SQ_SIZE // 5, False, False)
     IMAGES = {}
     SOUNDS = {}
     TRANSPARENT_IMAGES = {}
     FPS = 150
     
-
+    
     load_images_svg()
+    # load_images_png()
     load_sounds()
     main()
     
