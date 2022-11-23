@@ -15,7 +15,7 @@ STALEMATE = 0
 DEPTH = 3
 
 
-def find_best_move(function, **kwargs) -> Move:
+def find_best_move(function, queue, **kwargs) -> Move:
     ''' Helper function to call other specified functions based on chosen algorithm'''
     global best_moves, counter
     
@@ -27,7 +27,7 @@ def find_best_move(function, **kwargs) -> Move:
     function(**kwargs)
     # print('Board states evaluated:', counter)
     gs.undo_log = temp_undo_log
-    return best_moves[random.randint(0, len(best_moves) - 1)]
+    queue.put(best_moves[random.randint(0, len(best_moves) - 1)]) # add the ai move to return queue for the process
 
 def get_material_score(gs: GameState) -> int:
     '''Get material score for current board state. + for white pieces - for black pieces '''

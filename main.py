@@ -4,7 +4,7 @@ from ChessEngine import GameState, Move
 import ChessAI
 import time
 import os
-import logging
+import multiprocessing as mp
 # import PIL
 # import pygame.freetype    
 
@@ -351,7 +351,9 @@ def main():
     clicked_sqs = [] # keep track of initial and target squares
     is_lmb_pressed = False
     player_one = True # True if human is playing white, False if AI is playing white
-    player_two = True # True if human is playing Black, False if AI is playing Black
+    player_two = False # True if human is playing Black, False if AI is playing Black
+    ai_thinking = False
+    
     while run:
         human_turn = (curr_state.white_to_move and player_one) or (not curr_state.white_to_move and player_two)
         for event in pygame.event.get():
@@ -364,7 +366,7 @@ def main():
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     lmb_down_pos = get_square(event.pos)                        
 
-                    if not game_over and human_turn and lmb_down_pos[0] < 8 and lmb_down_pos[1] < 8:
+                    if not game_over and lmb_down_pos[0] < 8 and lmb_down_pos[1] < 8:
                         # LMB pressed
                         clicked_piece = curr_state.get_piece(lmb_down_pos)
                         if clicked_sqs:
@@ -380,22 +382,24 @@ def main():
                             else:
                                 # clicked on empty space or opponent's piece, register 2nd square, try to make a move
                                 clicked_sqs.append(lmb_down_pos)
-                                move_played = Move(clicked_sqs[0], clicked_sqs[1], curr_state) # register the move
-                                for i in range(len(valid_moves)):
-                                    if move_played == valid_moves[i]: # testing if move is valid
-                                        update_move(move_played, valid_moves[i])
-                                        if move_played.is_promotion:
-                                            promotion = True # move to promotion branch
-                                            animate_move(curr_state, screen, move_played, clock)
-                                            play_sound(move_played)
-                                            promotion_sqs = get_promotion_squares(move_played.end_sq) # generate squares and pieces for promotion screen
-                                            curr_state.remove_piece(move_played.start_sq) # remove pawn for promotion screen (for visual purposes)
-                                        else:
-                                            curr_state.make_move(move_played)
-                                            animate_move(curr_state, screen, move_played, clock)
-                                            play_sound(move_played)
-                                            move_made = True
-                                        break
+                                if human_turn:
+                                # to allow piece highlighting while AI is thinking
+                                    move_played = Move(clicked_sqs[0], clicked_sqs[1], curr_state) # register the move
+                                    for i in range(len(valid_moves)):
+                                        if move_played == valid_moves[i]: # testing if move is valid
+                                            update_move(move_played, valid_moves[i])
+                                            if move_played.is_promotion:
+                                                promotion = True # move to promotion branch
+                                                animate_move(curr_state, screen, move_played, clock)
+                                                play_sound(move_played)
+                                                promotion_sqs = get_promotion_squares(move_played.end_sq) # generate squares and pieces for promotion screen
+                                                curr_state.remove_piece(move_played.start_sq) # remove pawn for promotion screen (for visual purposes)
+                                            else:
+                                                curr_state.make_move(move_played)
+                                                animate_move(curr_state, screen, move_played, clock)
+                                                play_sound(move_played)
+                                                move_made = True
+                                            break
                                 clicked_sqs.clear()
                                 
                         else:
@@ -412,7 +416,7 @@ def main():
                         
                         ...
             
-                elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and clicked_sqs: # if LMB is released and piece is registered
+                elif event.type == pygame.MOUSEBUTTONUP and event.button == 1 and clicked_sqs and human_turn: # if LMB is released and piece is registered
                     lmb_up_pos = get_square(event.pos)
                     if lmb_up_pos[0] < 8 and lmb_up_pos[1] < 8:
                         if clicked_sqs[0] == lmb_up_pos:
@@ -446,6 +450,9 @@ def main():
                         
                 elif event.type == pygame.KEYUP and not is_lmb_pressed:
                     if event.key == pygame.K_LEFT:
+                        if ai_thinking:
+                            mp.active_children()[0].terminate() # kill the running process
+                            ai_thinking = False
                         clicked_sqs.clear()
                         curr_state.undo_last_move()
                         move_made = True
@@ -459,6 +466,9 @@ def main():
                             play_sound(curr_state.move_log[-1])
                     if event.key == pygame.K_r:
                         # completely reset the game
+                        if ai_thinking:
+                            mp.active_children()[0].terminate() # kill the running process
+                            ai_thinking = False
                         curr_state = GameState()
                         valid_moves = curr_state.get_valid_moves()
                         move_made = False
@@ -467,6 +477,7 @@ def main():
                         clicked_sqs.clear()
                         game_over = False
                         human_turn = (curr_state.white_to_move and player_one) or (not curr_state.white_to_move and player_two)
+                        
         
             else:
                 # Promotion screen
@@ -504,20 +515,29 @@ def main():
                 highlight_moves(curr_state, screen, valid_moves, clicked_sqs[0])
             draw_pieces(curr_state, screen)
             draw_check(curr_state, screen, player_color)
+        
         # AI moves
         if not game_over and not human_turn:
-            # move_played = ChessAI.find_best_move_greedy(curr_state, valid_moves)
-            move_played = ChessAI.find_best_move(ChessAI.find_move_negamax_ab_pruning, gs=curr_state, valid_moves=valid_moves, depth=ChessAI.DEPTH)
-            
-            if move_played is None:
-                move_played = ChessAI.find_random_move(valid_moves)
-            if move_played.is_promotion:
-                move_played.promotion_piece = player_color + 'Q'
-            
-            curr_state.make_move(move_played)
-            animate_move(curr_state, screen, move_played, clock)
-            play_sound(move_played)
-            move_made = True
+            if not ai_thinking:
+                ai_thinking = True
+                return_queue = mp.Queue()
+                ai_process = mp.Process(
+                    target=ChessAI.find_best_move,
+                    args=(ChessAI.find_move_negamax_ab_pruning, return_queue),
+                    kwargs={'gs': curr_state, 'valid_moves': valid_moves, 'depth': ChessAI.DEPTH})
+                ai_process.start() # start find_move function
+                # move_played = ChessAI.find_best_move(ChessAI.find_move_negamax_ab_pruning, gs=curr_state, valid_moves=valid_moves, depth=ChessAI.DEPTH)
+            if not ai_process.is_alive():
+                move_played = return_queue.get()
+                if move_played is None:
+                    move_played = ChessAI.find_random_move(valid_moves)
+                if move_played.is_promotion:
+                    move_played.promotion_piece = player_color + 'Q'
+                curr_state.make_move(move_played)
+                animate_move(curr_state, screen, move_played, clock)
+                play_sound(move_played)
+                move_made = True
+                ai_thinking = False
         
         # Move completed handling
         if move_made == True:
@@ -541,7 +561,6 @@ def main():
             elif curr_state.stalemate:
                 draw_end_text(screen, 'Draw')
                     
-        
         clock.tick(FPS)
         pygame.display.flip()
    
